@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document id="root_doc">
+<Schema name="sample" id="sample">
+	<SimpleField name="category" type="string"></SimpleField>
+</Schema>
+<Folder><name>sample</name>
+  <Placemark id="sample.1">
+	<name>Plot A</name>
+	<Style><LineStyle><color>ff0000ff</color></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
+	<ExtendedData><SchemaData schemaUrl="#sample">
+		<SimpleData name="category">parcel</SimpleData>
+	</SchemaData></ExtendedData>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>78.4961050423207,17.3851182145734 78.4959821179161,17.3941487358153 78.4865766150541,17.3940304560383 78.4867,17.385 78.4961050423207,17.3851182145734</coordinates></LinearRing></outerBoundaryIs></Polygon>
+  </Placemark>
+  <Placemark id="sample.2">
+	<name>Plot B</name>
+	<Style><LineStyle><color>ff0000ff</color></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
+	<ExtendedData><SchemaData schemaUrl="#sample">
+		<SimpleData name="category">parcel</SimpleData>
+	</SchemaData></ExtendedData>
+      <Polygon><outerBoundaryIs><LinearRing><coordinates>78.5102127443077,17.3852947073925 78.5101883034761,17.3871008318297 78.5054856716797,17.3870421049539 78.5055101585573,17.3852359869941 78.5102127443077,17.3852947073925</coordinates></LinearRing></outerBoundaryIs></Polygon>
+  </Placemark>
+  <Placemark id="sample.3">
+	<name>Road 1</name>
+	<Style><LineStyle><color>ff0000ff</color></LineStyle><PolyStyle><fill>0</fill></PolyStyle></Style>
+	<ExtendedData><SchemaData schemaUrl="#sample">
+		<SimpleData name="category">road</SimpleData>
+	</SchemaData></ExtendedData>
+      <LineString><coordinates>78.4867616646496,17.3804847686041 78.4961664768034,17.380602950578</coordinates></LineString>
+  </Placemark>
+  <Placemark id="sample.4">
+	<name>Gate</name>
+	<ExtendedData><SchemaData schemaUrl="#sample">
+		<SimpleData name="category">marker</SimpleData>
+	</SchemaData></ExtendedData>
+      <Point><coordinates>78.4913409438227,17.3895744080155</coordinates></Point>
+  </Placemark>
+</Folder>
+</Document></kml>
