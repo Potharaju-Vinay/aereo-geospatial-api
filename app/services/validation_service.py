@@ -1,17 +1,9 @@
-"""Upload validation and safe ZIP handling.
 
-We never blindly extract an uploaded ZIP. Before touching the disk we check:
-  * it is really a ZIP
-  * entry count and total *uncompressed* size are within limits (zip bombs)
-  * no entry tries to escape the target folder (path traversal / zip-slip)
-  * it contains exactly one shapefile with its required .shx and .dbf parts
-Only whitelisted shapefile component files are extracted, each written under
-a name we choose ourselves.
-"""
 import io
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+import zlib
 
 from app.core.config import Settings, get_settings
 from app.core.exceptions import AppError, ErrorCode
@@ -63,61 +55,128 @@ def _is_ignorable(name: str) -> bool:
     return normalized.endswith("/") or normalized.startswith("__MACOSX/") or base.startswith("._")
 
 
-def validate_shapefile_zip(content: bytes, settings: Settings | None = None) -> ShapefileLayout:
+def validate_shapefile_zip(
+    content: bytes,
+    settings: Settings | None = None,
+) -> ShapefileLayout:
     settings = settings or get_settings()
+
     try:
         zf = zipfile.ZipFile(io.BytesIO(content))
-    except zipfile.BadZipFile:
-        raise AppError(422, ErrorCode.INVALID_ZIP, "The uploaded file is not a valid ZIP archive.")
+    except (zipfile.BadZipFile, OSError, ValueError) as exc:
+        raise AppError(
+            422,
+            ErrorCode.INVALID_ZIP,
+            "The uploaded file is not a valid ZIP archive.",
+        ) from exc
 
     with zf:
         infos = zf.infolist()
+
         if len(infos) > settings.max_zip_entries:
             raise AppError(
-                422, ErrorCode.INVALID_ZIP,
+                422,
+                ErrorCode.INVALID_ZIP,
                 f"ZIP contains too many entries (limit {settings.max_zip_entries}).",
             )
 
         total_size = 0
         by_stem: dict[str, dict[str, str]] = {}
+
         for info in infos:
             if _is_unsafe_path(info.filename):
                 raise AppError(
-                    422, ErrorCode.INVALID_ZIP,
+                    422,
+                    ErrorCode.INVALID_ZIP,
                     "ZIP contains an unsafe file path and was rejected.",
                 )
+
             if _is_ignorable(info.filename):
                 continue
+
             total_size += info.file_size
+
             if total_size > settings.max_uncompressed_bytes:
                 raise AppError(
-                    413, ErrorCode.FILE_TOO_LARGE,
+                    413,
+                    ErrorCode.FILE_TOO_LARGE,
                     f"ZIP expands beyond the {settings.max_uncompressed_size_mb} MB limit.",
                 )
+
             path = PurePosixPath(info.filename.replace("\\", "/"))
             ext = path.suffix.lower()
-            if ext in ALLOWED_PARTS:
-                by_stem.setdefault(path.stem, {})[ext] = info.filename
 
-    shapefiles = [stem for stem, parts in by_stem.items() if ".shp" in parts]
-    if not shapefiles:
-        raise AppError(
-            422, ErrorCode.MISSING_SHAPEFILE_COMPONENT, "ZIP does not contain a .shp file."
-        )
-    if len(shapefiles) > 1:
-        raise AppError(
-            422, ErrorCode.INVALID_ZIP,
-            "ZIP must contain exactly one Shapefile; found " + str(len(shapefiles)) + ".",
-        )
+            if ext not in ALLOWED_PARTS:
+                continue
 
-    stem = shapefiles[0]
-    missing = [ext for ext in REQUIRED_PARTS if ext not in by_stem[stem]]
-    if missing:
-        raise AppError(
-            422, ErrorCode.MISSING_SHAPEFILE_COMPONENT,
-            f"Shapefile is missing required component(s): {', '.join(missing)}.",
+            parts = by_stem.setdefault(path.stem, {})
+
+            if ext in parts:
+                raise AppError(
+                    422,
+                    ErrorCode.INVALID_ZIP,
+                    f"ZIP contains duplicate Shapefile component: {path.stem}{ext}.",
+                )
+
+            parts[ext] = info.filename
+
+        shapefiles = [
+            stem
+            for stem, parts in by_stem.items()
+            if ".shp" in parts
+        ]
+
+        if not shapefiles:
+            raise AppError(
+                422,
+                ErrorCode.MISSING_SHAPEFILE_COMPONENT,
+                "ZIP does not contain a .shp file.",
+            )
+
+        if len(shapefiles) > 1:
+            raise AppError(
+                422,
+                ErrorCode.INVALID_ZIP,
+                f"ZIP must contain exactly one Shapefile; found {len(shapefiles)}.",
+            )
+
+        stem = shapefiles[0]
+        members = by_stem[stem]
+
+        missing = [
+            ext for ext in REQUIRED_PARTS
+            if ext not in members
+        ]
+
+        if missing:
+            raise AppError(
+                422,
+                ErrorCode.MISSING_SHAPEFILE_COMPONENT,
+                f"Shapefile is missing required component(s): {', '.join(missing)}.",
+            )
+
+        try:
+            for ext in REQUIRED_PARTS:
+                with zf.open(members[ext]) as source:
+                    while source.read(1024 * 1024):
+                        pass
+        except (
+            zipfile.BadZipFile,
+            RuntimeError,
+            EOFError,
+            OSError,
+            zlib.error,
+        ) as exc:
+            raise AppError(
+                422,
+                ErrorCode.INVALID_ZIP,
+                "ZIP contains a corrupted or unreadable Shapefile component.",
+            ) from exc
+
+        return ShapefileLayout(
+            stem=stem,
+            members=members,
         )
-    return ShapefileLayout(stem=stem, members=by_stem[stem])
 
 
 def extract_shapefile(
