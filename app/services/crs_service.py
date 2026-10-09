@@ -41,15 +41,13 @@ def select_projected_crs(
 
     min_x, min_y, max_x, max_y = geometry_wgs84.bounds
 
-    if (
-        min_x < -180
-        or max_x > 180
-        or min_y < -90
-        or max_y > 90
-    ):
+    if min_x < -180 or max_x > 180 or min_y < -90 or max_y > 90:
         raise ValueError("Geometry is outside valid WGS84 coordinate bounds.")
 
-    if max_x - min_x > 180:
+    longitude_span = max_x - min_x
+    latitude_span = max_y - min_y
+
+    if longitude_span > 180:
         raise ValueError(
             "Geometry may cross the antimeridian; split or normalize it "
             "before measurement."
@@ -63,8 +61,6 @@ def select_projected_crs(
         raise ValueError("Geometry centroid is outside valid WGS84 bounds.")
 
     warnings = []
-    longitude_span = max_x - min_x
-    latitude_span = max_y - min_y
 
     if source_crs.is_projected:
         axes = source_crs.axis_info
@@ -76,17 +72,64 @@ def select_projected_crs(
             )
         )
 
-        if uses_metres:
+        if uses_metres and longitude_span <= 6 and latitude_span <= 8:
             return CRSSelection(
                 source_crs=source_label,
                 projected_crs=source_label,
                 method="source_projected_crs",
             )
 
+        if not uses_metres:
+            warnings.append(
+                "Source CRS is projected but does not use metres; "
+                "a metric CRS was selected for measurement."
+            )
+
+    
+    if latitude_span > 8 or longitude_span > 6:
+        is_polygon = geometry_wgs84.geom_type in {
+            "Polygon",
+            "MultiPolygon",
+        }
+
+        if is_polygon:
+            if not -86 <= latitude <= 86:
+                raise ValueError(
+                    "Large polygon is outside the supported latitude range "
+                    "for the selected equal-area projection."
+                )
+
+            warnings.append(
+                "Large polygon: using a global equal-area projection."
+            )
+
+            return CRSSelection(
+                source_crs=source_label,
+                projected_crs="EPSG:6933",
+                method="global_equal_area",
+                warnings=warnings,
+            )
+
+        if not -80 <= latitude <= 84:
+            raise ValueError(
+                "Large line is outside the standard UTM latitude range."
+            )
+
+        zone = min(60, max(1, int((longitude + 180) // 6) + 1))
+        epsg = (32600 if latitude >= 0 else 32700) + zone
+
         warnings.append(
-            "Source CRS is projected but does not use metres; "
-            "a metric CRS was selected for measurement."
+            "Large line: using centroid-based UTM; verify length accuracy "
+            "for the full extent."
         )
+
+        return CRSSelection(
+            source_crs=source_label,
+            projected_crs=crs_label(CRS.from_epsg(epsg)),
+            method="utm_from_centroid",
+            warnings=warnings,
+        )
+
 
     if not -80 <= latitude <= 84:
         raise ValueError(
@@ -98,19 +141,6 @@ def select_projected_crs(
     zone = min(60, max(1, int((longitude + 180) // 6) + 1))
     epsg = (32600 if latitude >= 0 else 32700) + zone
     projected = CRS.from_epsg(epsg)
-
-    if longitude_span > 6:
-        warnings.append(
-            "Geometry spans multiple UTM zones; a single UTM projection "
-            "may reduce measurement accuracy."
-        )
-
-    if latitude_span > 8:
-        warnings.append(
-            "Geometry spans a large latitude range; verify measurements "
-            "against a projection suited to the full extent."
-        )
-
 
     return CRSSelection(
         source_crs=source_label,

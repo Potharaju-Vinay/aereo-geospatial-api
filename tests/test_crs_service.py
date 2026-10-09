@@ -58,3 +58,19 @@ def test_missing_source_crs_is_rejected():
             LineString([(78.48, 17.36), (78.49, 17.37)]),
             None,
         )
+        
+
+def test_large_line_uses_utm_with_accuracy_warning():
+    geometry = LineString([
+        (-10.0, 10.0),
+        (20.0, 30.0),
+    ])
+
+    result = select_projected_crs(
+        geometry,
+        CRS.from_epsg(4326),
+    )
+
+    assert result.projected_crs.startswith("EPSG:326")
+    assert result.method == "utm_from_centroid"
+    assert any("Large line" in warning for warning in result.warnings)

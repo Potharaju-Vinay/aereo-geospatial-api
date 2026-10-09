@@ -6,6 +6,10 @@ from shapely import make_valid, transform
 
 from app.services.crs_service import select_projected_crs
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 GEOD = Geod(ellps="WGS84")
 
@@ -128,11 +132,10 @@ def measure_geometry(geometry, source_crs) -> MeasurementResult:
             geometry = repaired
             warnings.append("GEOMETRY_REPAIRED")
 
-        selection = select_projected_crs(geometry, source_crs)
-        warnings.extend(selection.warnings)
+        
+        from pyproj import CRS, Transformer
 
-        from pyproj import Transformer
-
+        source_crs = CRS.from_user_input(source_crs)
         wgs84_transformer = Transformer.from_crs(
             source_crs,
             "EPSG:4326",
@@ -145,36 +148,20 @@ def measure_geometry(geometry, source_crs) -> MeasurementResult:
             interleaved=False,
         )
 
-        projected_transformer = Transformer.from_crs(
-            source_crs,
-            selection.projected_crs,
-            always_xy=True,
-        )
-
-        projected_geometry = transform(
-            geometry,
-            projected_transformer.transform,
-            interleaved=False,
-        )
-
-        if isinstance(projected_geometry, (Polygon, MultiPolygon)):
-            value = abs(projected_geometry.area)
-            geodesic_value = _geodesic_area(source_wgs84)
+        if isinstance(source_wgs84, (Polygon, MultiPolygon)):
             measurement_type = "area"
             unit = "m2"
-
-        elif isinstance(projected_geometry, (LineString, MultiLineString)):
-            value = projected_geometry.length
-            geodesic_value = _geodesic_length(source_wgs84)
+            geodesic_value = _geodesic_area(source_wgs84)
+        elif isinstance(source_wgs84, (LineString, MultiLineString)):
             measurement_type = "length"
             unit = "m"
-
+            geodesic_value = _geodesic_length(source_wgs84)
         else:
             return MeasurementResult(
                 measurement_type=None,
                 value=None,
                 unit=None,
-                projected_crs=selection.projected_crs,
+                projected_crs=None,
                 geodesic_value=None,
                 difference_percent=None,
                 warnings=warnings,
@@ -183,22 +170,64 @@ def measure_geometry(geometry, source_crs) -> MeasurementResult:
                 error_message=f"Geometry type '{geometry_type}' is not supported.",
             )
 
-        difference = _difference_percent(value, geodesic_value)
+        try:
+            selection = select_projected_crs(geometry, source_crs)
+            warnings.extend(selection.warnings)
 
-        if difference is not None and difference > 0.5:
-            warnings.append("LARGE_GEODESIC_DIFFERENCE")
+            projected_transformer = Transformer.from_crs(
+                source_crs,
+                selection.projected_crs,
+                always_xy=True,
+            )
 
-        return MeasurementResult(
-            measurement_type=measurement_type,
-            value=value,
-            unit=unit,
-            projected_crs=selection.projected_crs,
-            geodesic_value=geodesic_value,
-            difference_percent=difference,
-            warnings=warnings,
-        )
+            projected_geometry = transform(
+                geometry,
+                projected_transformer.transform,
+                interleaved=False,
+            )
+
+            value = (
+                abs(projected_geometry.area)
+                if measurement_type == "area"
+                else projected_geometry.length
+            )
+
+            difference = _difference_percent(value, geodesic_value)
+
+            if difference is not None and difference > 0.5:
+                warnings.append("LARGE_GEODESIC_DIFFERENCE")
+
+            return MeasurementResult(
+                measurement_type=measurement_type,
+                value=value,
+                unit=unit,
+                projected_crs=selection.projected_crs,
+                geodesic_value=geodesic_value,
+                difference_percent=difference,
+                warnings=warnings,
+            )
+
+        except ValueError as exc:
+            if "antimeridian" not in str(exc).lower():
+                raise
+
+            warnings.append("ANTIMERIDIAN_GEODESIC_MEASUREMENT")
+            return MeasurementResult(
+                measurement_type=measurement_type,
+                value=geodesic_value,
+                unit=unit,
+                projected_crs=None,
+                geodesic_value=geodesic_value,
+                difference_percent=0.0,
+                warnings=warnings,
+            )
 
     except Exception:
+        logger.exception(
+            "Geometry measurement failed: geometry_type=%s, source_crs=%s",
+            geometry_type,
+            source_crs,
+        )
         return MeasurementResult(
             measurement_type=None,
             value=None,

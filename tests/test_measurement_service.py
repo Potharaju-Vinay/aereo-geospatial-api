@@ -88,3 +88,46 @@ def test_invalid_polygon_is_repaired_before_measurement():
     assert result.measurement_type == "area"
     assert result.value > 0
     assert "GEOMETRY_REPAIRED" in result.warnings
+    
+
+def test_antimeridian_polygon_is_measured():
+    geometry = Polygon([
+        (179.0, 10.0),
+        (-179.0, 10.0),
+        (-179.0, 11.0),
+        (179.0, 11.0),
+        (179.0, 10.0),
+    ])
+
+    result = measure_geometry(
+        geometry,
+        CRS.from_epsg(4326),
+    )
+
+    assert result.status == "MEASURED"
+    assert result.measurement_type == "area"
+    assert result.unit == "m2"
+    assert result.geodesic_value is not None
+    assert result.geodesic_value > 0
+    
+
+def test_large_polygon_reports_projection_warning():
+    geometry = Polygon([
+        (-10.0, 10.0),
+        (20.0, 10.0),
+        (20.0, 30.0),
+        (-10.0, 30.0),
+        (-10.0, 10.0),
+    ])
+
+    result = measure_geometry(
+        geometry,
+        CRS.from_epsg(4326),
+    )
+
+    assert result.status == "MEASURED"
+    assert result.measurement_type == "area"
+    assert result.value > 0
+    assert result.geodesic_value > 0
+    assert result.projected_crs == "EPSG:6933"
+    assert "LARGE_GEODESIC_DIFFERENCE" in result.warnings
