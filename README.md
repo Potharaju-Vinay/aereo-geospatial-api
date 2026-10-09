@@ -121,6 +121,24 @@ The response includes the file ID, detected file type, CRS, processing status, f
 curl "http://127.0.0.1:8000/api/files/{file_id}/"
 ```
 
+Example response (selected fields):
+
+```json
+{
+  "id": "11b9686d-2ce2-453c-9944-e7f718ed2974",
+  "filename": "ne_10m_admin_0_countries.zip",
+  "file_type": "shapefile",
+  "crs": "EPSG:4326",
+  "status": "COMPLETED",
+  "feature_count": 258,
+  "error_code": null,
+  "error_message": null
+}
+```
+
+The example shows selected fields from a successful upload. The complete response also includes the file's quality report and processing timestamps.
+
+
 ### Retrieve measurements
 
 ```bash
@@ -148,13 +166,13 @@ Geographic coordinates such as EPSG:4326 use angular units (degrees), so they mu
 GeoMeasure follows this process:
 
 1. Read the source CRS from the uploaded data. KML uses EPSG:4326; Shapefiles must provide a valid CRS.
-2. Select an appropriate projected CRS for measurement. For geographic data, the implementation selects a UTM zone based on the geometry's location.
-3. Transform the geometry to the selected projected CRS.
+2. Select a suitable projected CRS based on the geometry's location and geographic extent. UTM is used where appropriate, while large or global geometries require a projection better suited to their extent.
+3. Transform the geometry into the selected projected CRS.
 4. Calculate polygon area or line length using the projected geometry.
 5. Calculate an independent geodesic cross-check using PyProj.
-6. Record the projected CRS, geodesic result, percentage difference, and any applicable warnings.
+6. Record the projected CRS, geodesic result, percentage difference, and applicable warnings.
 
-Large geographic extents may require additional consideration because a single UTM zone is not suitable for every dataset.
+Projection selection matters because no single local projection is appropriate for every geographic extent. Large or global geometries can produce differences between projected and geodesic measurements, so GeoMeasure records cross-check results and warnings to support interpretation.
 
 ## Measurement Results
 
@@ -171,6 +189,28 @@ Each feature result can include:
 Polygon measurements use square metres (`m2`), and line measurements use metres (`m`). Point features return `NO_MEASUREMENT`.
 
 Invalid geometries may be repaired before measurement, with the repair recorded in the result. Unsupported or problematic features are represented using their feature status and error information where applicable.
+
+### Example Measurement Result
+
+The following example shows selected fields returned for a measured feature:
+
+```json
+{
+  "id": 4200,
+  "feature_index": 0,
+  "geometry_type": "MultiPolygon",
+  "measurement_type": "area",
+  "measurement_value": 1879826219056.2422,
+  "measurement_unit": "m2",
+  "status": "MEASURED",
+  "warnings": [
+    "Large polygon: using a global equal-area projection."
+  ]
+}
+```
+
+This example is taken from a successful measurement response. Geometry coordinates and feature properties are omitted for readability. Source and projected CRS fields are also omitted because they were not populated in the displayed result.
+
 
 ## Data Quality Reports
 
@@ -249,6 +289,40 @@ The current test suite covers upload API behavior, validation, parsing, and meas
 - Background processing for large uploads
 - Additional export formats and measurement units
 - Continuous integration and containerized deployment
+
+## Frontend Dashboard
+
+GeoMeasure includes a React and TypeScript dashboard for uploading datasets, exploring geometries on an interactive map, reviewing measurements, and inspecting quality reports.
+
+### Run the frontend
+
+Open a second terminal from the repository root:
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+Open the local URL displayed by Vite, usually `http://localhost:5173`.
+
+Keep the FastAPI backend running in the first terminal. Its interactive API documentation is available at `http://127.0.0.1:8000/docs`.
+
+### Frontend validation
+
+Build the frontend for production:
+
+```powershell
+npm run build
+```
+
+Run the frontend lint checks:
+
+```powershell
+npm run lint
+```
+
+
 
 ## Learning Outcomes
 

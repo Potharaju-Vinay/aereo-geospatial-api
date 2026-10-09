@@ -1,75 +1,90 @@
-# React + TypeScript + Vite
+# GeoMeasure Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A React and TypeScript dashboard for uploading geospatial files, exploring geometries on an interactive map, reviewing measurement results, and inspecting data quality and processing provenance.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19
+- TypeScript
+- Vite
+- React Leaflet and Leaflet
+- Lucide React
 
-## React Compiler
+## Prerequisites
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Node.js and npm
+- GeoMeasure FastAPI backend
 
-## Expanding the ESLint configuration
+## Installation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+From the project root, navigate to the frontend directory and install dependencies:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+cd frontend
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+## Run the Development Server
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+npm run dev
 ```
+
+Open the local URL displayed by Vite, usually `http://localhost:5173`.
+
+## Run the Backend
+
+In a separate terminal, navigate to the project root and activate the Python virtual environment:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn app.main:app --reload
+```
+
+Backend URL: `http://127.0.0.1:8000`
+
+Interactive API documentation: `http://127.0.0.1:8000/docs`
+
+The backend command assumes the application entry point is `app.main:app`.
+
+## Features
+
+- Upload KML and zipped Shapefile datasets
+- View dataset metadata and processing status
+- Explore geometries on an interactive map
+- Inspect feature properties and geometry details
+- Browse paginated measurement results
+- Review geometry quality reports and processing provenance
+
+## Available Scripts
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start the development server |
+| `npm run build` | Type-check and build for production |
+| `npm run lint` | Run ESLint |
+| `npm run preview` | Preview the production build |
+
+## Production Build
+
+```powershell
+npm run build
+```
+
+The production build is generated in the `dist` directory.
+
+## Project Structure
+
+```text
+frontend/
+├── public/
+├── src/
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+## Related Documentation
+
+See the main README in the repository root for backend architecture, API endpoints, measurement methodology, CRS handling, validation, and design decisions.
