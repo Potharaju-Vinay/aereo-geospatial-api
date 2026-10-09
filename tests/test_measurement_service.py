@@ -1,4 +1,4 @@
-from pyproj import CRS
+﻿from pyproj import CRS
 from shapely.geometry import LineString, Point, Polygon
 
 from app.services.measurement_service import measure_geometry
@@ -68,3 +68,23 @@ def test_empty_geometry_fails():
 
     assert result.status == "ERROR"
     assert result.error_code == "EMPTY_GEOMETRY"
+
+
+def test_invalid_polygon_is_repaired_before_measurement():
+    geometry = Polygon([
+        (78.4770, 17.3850),
+        (78.4860, 17.3940),
+        (78.4860, 17.3850),
+        (78.4770, 17.3940),
+        (78.4770, 17.3850),
+    ])
+
+    result = measure_geometry(
+        geometry,
+        CRS.from_epsg(4326),
+    )
+
+    assert result.status == "MEASURED"
+    assert result.measurement_type == "area"
+    assert result.value > 0
+    assert "GEOMETRY_REPAIRED" in result.warnings

@@ -1,4 +1,4 @@
-# GeoMeasure — Trusted Geospatial Measurement API
+﻿# GeoMeasure - Trusted Geospatial Measurement API
 
 GeoMeasure is a Python REST API that processes KML files and zipped Shapefiles, calculates geometry measurements, and provides measurement provenance and data quality reports.
 
