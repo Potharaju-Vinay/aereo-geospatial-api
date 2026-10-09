@@ -44,6 +44,33 @@ class FileRepository:
         """Insert all features of a file in one transaction."""
         self.db.add_all([Feature(file_id=file_id, **row) for row in rows])
         self.db.commit()
+    
+    def update_feature_measurement(
+        self,
+        feature: Feature,
+        measurement_type: str | None,
+        measurement_value: float | None,
+        measurement_unit: str | None,
+        provenance: dict | None,
+        warnings: list,
+        status: str,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> Feature:
+        feature.measurement_type = measurement_type
+        feature.measurement_value = measurement_value
+        feature.measurement_unit = measurement_unit
+        feature.provenance = provenance
+        feature.warnings = warnings
+        feature.status = status
+        feature.error_code = error_code
+        feature.error_message = error_message
+
+        self.db.add(feature)
+        self.db.commit()
+        self.db.refresh(feature)
+
+        return feature
 
     def get_features(self, file_id: str) -> list[Feature]:
         stmt = select(Feature).where(Feature.file_id == file_id).order_by(Feature.feature_index)
